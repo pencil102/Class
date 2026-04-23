@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClassHub - Classroom Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>ClassHub</h1>
+                <p>Classroom Management Platform</p>
+            </div>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required>
+                </div>
+                <div class="form-group">
+                    <label for="userType">I am a</label>
+                    <select id="userType" required>
+                        <option value="">Select role</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Sign In</button>
+                <button type="button" class="btn-secondary" onclick="showSignup()">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Signup Screen -->
+    <div id="signupScreen" class="login-container" style="display: none;">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>Create Account</h1>
+                <p>Join ClassHub</p>
+            </div>
+            <form id="signupForm" onsubmit="handleSignup(event)">
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input type="text" id="signupName" placeholder="Enter your full name" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">Email Address</label>
+                    <input type="email" id="signupEmail" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" placeholder="Create a password" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupUserType">I am a</label>
+                    <select id="signupUserType" required>
+                        <option value="">Select role</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Create Account</button>
+                <button type="button" class="btn-secondary" onclick="showLogin()">Back to Login</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="dashboard" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>ClassHub</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <ul>
+                    <li><a href="#" onclick="showSection('home')" class="nav-item active">🏠 Home</a></li>
+                    <li id="teacherNav" style="display: none;">
+                        <a href="#" onclick="showSection('classes')" class="nav-item">📚 My Classes</a>
+                    </li>
+                    <li id="studentNav" style="display: none;">
+                        <a href="#" onclick="showSection('myClasses')" class="nav-item">📚 My Classes</a>
+                    </li>
+                    <li id="createClassNav" style="display: none;">
+                        <a href="#" onclick="showSection('createClass')" class="nav-item">➕ Create Class</a>
+                    </li>
+                    <li id="joinClassNav" style="display: none;">
+                        <a href="#" onclick="showSection('joinClass')" class="nav-item">🔗 Join Class</a>
+                    </li>
+                    <li><a href="#" onclick="showSection('messages')" class="nav-item">💬 Messages</a></li>
+                    <li><a href="#" onclick="showSection('profile')" class="nav-item">👤 Profile</a></li>
+                    <li><a href="#" onclick="handleLogout()" class="nav-item">🚪 Logout</a></li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 id="pageTitle">Welcome</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <span id="userName"></span>
+                        <span id="userRole"></span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Sections -->
+            <div class="content-area">
+                <!-- Home Section -->
+                <section id="home" class="content-section">
+                    <div class="welcome-section">
+                        <h2>Welcome to ClassHub</h2>
+                        <p id="welcomeMessage"></p>
+                        <div class="quick-stats" id="quickStats"></div>
+                    </div>
+                </section>
+
+                <!-- Classes Section (Teacher) -->
+                <section id="classes" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <h2>My Classes</h2>
+                        <button class="btn-primary" onclick="showSection('createClass')">+ Create New Class</button>
+                    </div>
+                    <div id="classesContainer" class="classes-grid"></div>
+                </section>
+
+                <!-- My Classes Section (Student) -->
+                <section id="myClasses" class="content-section" style="display: none;">
+                    <div class="section-header">
+                        <h2>My Classes</h2>
+                        <button class="btn-primary" onclick="showSection('joinClass')">+ Join New Class</button>
+                    </div>
+                    <div id="studentClassesContainer" class="classes-grid"></div>
+                </section>
+
+                <!-- Create Class Section -->
+                <section id="createClass" class="content-section" style="display: none;">
+                    <div class="form-container">
+                        <h2>Create a New Class</h2>
+                        <form id="createClassForm" onsubmit="handleCreateClass(event)">
+                            <div class="form-group">
+                                <label for="className">Class Name *</label>
+                                <input type="text" id="className" placeholder="e.g., Biology 101" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="classDescription">Description</label>
+                                <textarea id="classDescription" placeholder="Describe your class..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="classSubject">Subject</label>
+                                <input type="text" id="classSubject" placeholder="e.g., Science">
+                            </div>
+                            <div class="form-group">
+                                <label for="classRoom">Room/Period</label>
+                                <input type="text" id="classRoom" placeholder="e.g., Room 101">
+                            </div>
+                            <button type="submit" class="btn-primary">Create Class</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Join Class Section -->
+                <section id="joinClass" class="content-section" style="display: none;">
+                    <div class="form-container">
+                        <h2>Join a Class</h2>
+                        <form id="joinClassForm" onsubmit="handleJoinClass(event)">
+                            <div class="form-group">
+                                <label for="classCode">Class Code *</label>
+                                <input type="text" id="classCode" placeholder="Enter class code (e.g., ABC123)" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Join Class</button>
+                        </form>
+                        <div id="availableClasses" class="available-classes"></div>
+                    </div>
+                </section>
+
+                <!-- Class Detail Section -->
+                <section id="classDetail" class="content-section" style="display: none;">
+                    <div class="class-detail-header">
+                        <div>
+                            <h2 id="classDetailTitle"></h2>
+                            <p id="classDetailTeacher"></p>
+                        </div>
+                        <button id="editClassBtn" class="btn-secondary" onclick="showSection('editClass')" style="display: none;">Edit Class</button>
+                    </div>
+                    <div class="class-tabs">
+                        <button class="tab-button active" onclick="switchTab('stream')">Stream</button>
+                        <button class="tab-button" onclick="switchTab('classwork')">Classwork</button>
+                        <button class="tab-button" onclick="switchTab('grades')">Grades</button>
+                        <button class="tab-button" onclick="switchTab('members')">Members</button>
+                    </div>
+                    <div class="tab-content">
+                        <!-- Stream Tab -->
+                        <div id="streamTab" class="tab-pane active">
+                            <div id="announcementForm" style="display: none;" class="announcement-form">
+                                <h3>Post an Announcement</h3>
+                                <form onsubmit="handlePostAnnouncement(event)">
+                                    <textarea id="announcementText" placeholder="Share something with your class..." required></textarea>
+                                    <button type="submit" class="btn-primary">Post</button>
+                                </form>
+                            </div>
+                            <div id="streamContainer" class="stream-container"></div>
+                        </div>
+
+                        <!-- Classwork Tab -->
+                        <div id="classworkTab" class="tab-pane" style="display: none;">
+                            <div id="assignmentForm" style="display: none;" class="assignment-form">
+                                <h3>Create Assignment</h3>
+                                <form onsubmit="handleCreateAssignment(event)">
+                                    <div class="form-group">
+                                        <label for="assignmentTitle">Assignment Title *</label>
+                                        <input type="text" id="assignmentTitle" placeholder="Assignment title" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="assignmentDescription">Description</label>
+                                        <textarea id="assignmentDescription" placeholder="Assignment details..."></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="assignmentDueDate">Due Date</label>
+                                        <input type="datetime-local" id="assignmentDueDate">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="assignmentPoints">Total Points</label>
+                                        <input type="number" id="assignmentPoints" placeholder="100">
+                                    </div>
+                                    <button type="submit" class="btn-primary">Create Assignment</button>
+                                </form>
+                            </div>
+                            <div id="classworkContainer" class="classwork-container"></div>
+                        </div>
+
+                        <!-- Grades Tab -->
+                        <div id="gradesTab" class="tab-pane" style="display: none;">
+                            <div id="gradesContainer" class="grades-container"></div>
+                        </div>
+
+                        <!-- Members Tab -->
+                        <div id="membersTab" class="tab-pane" style="display: none;">
+                            <div id="membersContainer" class="members-container"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Edit Class Section -->
+                <section id="editClass" class="content-section" style="display: none;">
+                    <div class="form-container">
+                        <h2>Edit Class</h2>
+                        <form id="editClassForm" onsubmit="handleEditClass(event)">
+                            <div class="form-group">
+                                <label for="editClassName">Class Name</label>
+                                <input type="text" id="editClassName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="editClassDescription">Description</label>
+                                <textarea id="editClassDescription"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="editClassSubject">Subject</label>
+                                <input type="text" id="editClassSubject">
+                            </div>
+                            <div class="form-group">
+                                <label for="editClassRoom">Room/Period</label>
+                                <input type="text" id="editClassRoom">
+                            </div>
+                            <button type="submit" class="btn-primary">Save Changes</button>
+                            <button type="button" class="btn-secondary" onclick="showSection('classDetail')">Cancel</button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Assignment Detail Section -->
+                <section id="assignmentDetail" class="content-section" style="display: none;">
+                    <div class="assignment-detail">
+                        <h2 id="assignmentDetailTitle"></h2>
+                        <div class="assignment-meta">
+                            <span id="assignmentDetailDue"></span>
+                            <span id="assignmentDetailPoints"></span>
+                        </div>
+                        <div id="assignmentDetailDesc" class="assignment-description"></div>
+                        
+                        <div id="submissionSection" style="display: none;" class="submission-section">
+                            <h3>Your Submission</h3>
+                            <div id="submissionForm" class="submission-form">
+                                <textarea id="submissionText" placeholder="Write your answer or submission here..."></textarea>
+                                <button class="btn-primary" onclick="handleSubmitWork()">Submit Work</button>
+                            </div>
+                            <div id="submissionStatus" class="submission-status"></div>
+                        </div>
+
+                        <div id="submissionsView" style="display: none;" class="submissions-view">
+                            <h3>Student Submissions</h3>
+                            <div id="submissionsContainer" class="submissions-container"></div>
+                        </div>
+
+                        <div id="commentsSection" class="comments-section">
+                            <h3>Comments</h3>
+                            <div id="commentsContainer" class="comments-container"></div>
+                            <div class="add-comment">
+                                <textarea id="commentText" placeholder="Add a comment..."></textarea>
+                                <button class="btn-primary" onclick="handleAddComment()">Comment</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Messages Section -->
+                <section id="messages" class="content-section" style="display: none;">
+                    <div class="messages-container">
+                        <div class="messages-list">
+                            <h2>Conversations</h2>
+                            <div id="conversationsList" class="conversations-list"></div>
+                        </div>
+                        <div class="message-chat">
+                            <div id="chatWindow" class="chat-window"></div>
+                            <div id="messageCompose" class="message-compose" style="display: none;">
+                                <textarea id="messageText" placeholder="Type your message..."></textarea>
+                                <button class="btn-primary" onclick="handleSendMessage()">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Profile Section -->
+                <section id="profile" class="content-section" style="display: none;">
+                    <div class="profile-container">
+                        <h2>My Profile</h2>
+                        <div class="profile-info">
+                            <div class="profile-field">
+                                <label>Name:</label>
+                                <p id="profileName"></p>
+                            </div>
+                            <div class="profile-field">
+                                <label>Email:</label>
+                                <p id="profileEmail"></p>
+                            </div>
+                            <div class="profile-field">
+                                <label>Role:</label>
+                                <p id="profileRole"></p>
+                            </div>
+                            <div class="profile-field">
+                                <label>Joined:</label>
+                                <p id="profileJoined"></p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
