@@ -5,6 +5,7 @@ let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
 let selectedClassId = null;
 let selectedAssignmentId = null;
 let selectedConversationId = null;
+let selectedFiles = [];
 
 // Initialize demo data if needed
 function initializeDemoData() {
@@ -32,6 +33,55 @@ function initializeDemoData() {
 }
 
 initializeDemoData();
+
+// Handle File Selection
+function handleFileSelect() {
+    const fileInput = document.getElementById('submissionFiles');
+    selectedFiles = Array.from(fileInput.files);
+    displayAttachedFiles();
+}
+
+// Display Attached Files
+function displayAttachedFiles() {
+    const container = document.getElementById('attachedFiles');
+    if (selectedFiles.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    const filesHtml = selectedFiles.map((file, index) => `
+        <div class="attached-file">
+            <span class="file-icon">📄</span>
+            <span class="file-name">${file.name}</span>
+            <span class="file-size">${(file.size / 1024).toFixed(2)} KB</span>
+            <button type="button" class="file-remove" onclick="removeFile(${index})">✕</button>
+        </div>
+    `).join('');
+    
+    container.innerHTML = `<div class="files-list">${filesHtml}</div>`;
+}
+
+// Remove File from Selection
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    document.getElementById('submissionFiles').value = '';
+    displayAttachedFiles();
+}
+
+// Convert File to Base64
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve({
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            data: reader.result
+        });
+        reader.onerror = error => reject(error);
+    });
+}
 
 // Login Handler
 function handleLogin(e) {
@@ -481,7 +531,10 @@ function handleCreateAssignment(e) {
 // Open Assignment
 function openAssignment(assignmentId) {
     selectedAssignmentId = assignmentId;
+    selectedFiles = [];
     showSection('assignmentDetail');
+    document.getElementById('submissionFiles').removeEventListener('change', handleFileSelect);
+    document.getElementById('submissionFiles').addEventListener('change', handleFileSelect);
 }
 
 // Load Assignment Detail
@@ -520,24 +573,46 @@ function getCurrentUserSubmission(assignmentId) {
 // Load Submission Status
 function loadSubmissionStatus(assignment) {
     const submission = getCurrentUserSubmission(assignment.id);
-    const statusHtml = submission
-        ? `<div class="submission-status">
-            <p><strong>Status:</strong> Submitted on ${new Date(submission.submittedAt).toLocaleDateString()}</p>
-            ${submission.grade ? `<p><strong>Grade:</strong> ${submission.grade}/${assignment.points}</p>` : '<p>Waiting for grading...</p>'}
-            <p><strong>Your Answer:</strong></p>
-            <p>${submission.content}</p>
-        </div>`
-        : '<div class="submission-status"><p>You haven\'t submitted this assignment yet.</p></div>';
+    let statusHtml = '';
+    
+    if (submission) {
+        statusHtml = `<div class="submission-status">
+            <p><strong>✅ Status:</strong> Submitted on ${new Date(submission.submittedAt).toLocaleDateString()}</p>
+            ${submission.grade ? `<p><strong>📊 Grade:</strong> ${submission.grade}/${assignment.points}</p>` : '<p>⏳ Waiting for grading...</p>'}
+            ${submission.notes ? `<p><strong>📝 Notes:</strong> ${submission.notes}</p>` : ''}
+            ${submission.files && submission.files.length > 0 ? `
+                <div class="submission-files">
+                    <p><strong>📎 Attached Files:</strong></p>
+                    ${submission.files.map(file => `
+                        <div class="file-link">
+                            <span>📄 ${file.name}</span>
+                            <span class="file-size">(${(file.size / 1024).toFixed(2)} KB)</span>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+        </div>`;
+    } else {
+        statusHtml = '<div class="submission-status"><p>You haven\'t submitted this assignment yet.</p></div>';
+    }
 
     document.getElementById('submissionStatus').innerHTML = statusHtml;
 }
 
 // Submit Work Handler
-function handleSubmitWork() {
-    const content = document.getElementById('submissionText').value;
-    if (!content) {
-        alert('Please enter your submission');
+async function handleSubmitWork() {
+    const notes = document.getElementById('submissionText').value;
+    
+    if (selectedFiles.length === 0 && !notes) {
+        alert('Please add files or write notes for your submission');
         return;
+    }
+
+    // Convert files to base64
+    let filesData = [];
+    for (let file of selectedFiles) {
+        const fileData = await fileToBase64(file);
+        filesData.push(fileData);
     }
 
     const targetClass = classes.find(c => c.id === selectedClassId);
@@ -545,14 +620,16 @@ function handleSubmitWork() {
 
     let submission = assignment.submissions.find(s => s.studentId === currentUser.id);
     if (submission) {
-        submission.content = content;
+        submission.notes = notes;
+        submission.files = filesData;
         submission.submittedAt = new Date().toISOString();
     } else {
         assignment.submissions.push({
             id: 'submission' + Date.now(),
             studentId: currentUser.id,
             studentName: currentUser.name,
-            content,
+            notes,
+            files: filesData,
             submittedAt: new Date().toISOString(),
             grade: null
         });
@@ -560,6 +637,9 @@ function handleSubmitWork() {
 
     localStorage.setItem('classes', JSON.stringify(classes));
     document.getElementById('submissionText').value = '';
+    document.getElementById('submissionFiles').value = '';
+    selectedFiles = [];
+    displayAttachedFiles();
     loadSubmissionStatus(assignment);
     alert('Assignment submitted successfully!');
 }
@@ -576,7 +656,18 @@ function loadSubmissions(assignment) {
                     </div>
                     <span class="submission-item-score">${s.grade || 'Not graded'}</span>
                 </div>
-                <div class="submission-item-content">${s.content}</div>
+                ${s.notes ? `<div class="submission-item-notes"><strong>Notes:</strong> ${s.notes}</div>` : ''}
+                ${s.files && s.files.length > 0 ? `
+                    <div class="submission-files">
+                        <strong>📎 Attached Files:</strong>
+                        ${s.files.map(file => `
+                            <div class="file-item">
+                                <span>📄 ${file.name}</span>
+                                <span class="file-size">(${(file.size / 1024).toFixed(2)} KB)</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
                 <button class="btn-primary" onclick="gradeSubmission('${s.id}')">Grade</button>
             </div>
         `).join('')
@@ -854,6 +945,7 @@ function handleLogout() {
     selectedClassId = null;
     selectedAssignmentId = null;
     selectedConversationId = null;
+    selectedFiles = [];
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('signupScreen').style.display = 'none';
     document.getElementById('dashboard').style.display = 'none';

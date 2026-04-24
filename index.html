@@ -290,10 +290,18 @@
                         <div id="assignmentDetailDesc" class="assignment-description"></div>
                         
                         <div id="submissionSection" style="display: none;" class="submission-section">
-                            <h3>Your Submission</h3>
+                            <h3>📎 Your Submission</h3>
                             <div id="submissionForm" class="submission-form">
-                                <textarea id="submissionText" placeholder="Write your answer or submission here..."></textarea>
-                                <button class="btn-primary" onclick="handleSubmitWork()">Submit Work</button>
+                                <div class="form-group">
+                                    <label for="submissionText">Submission Notes (Optional)</label>
+                                    <textarea id="submissionText" placeholder="Add any notes or comments about your submission..."></textarea>
+                                </div>
+                                <div class="file-upload-container">
+                                    <label for="submissionFiles">📁 Attach Files</label>
+                                    <input type="file" id="submissionFiles" multiple accept=".doc,.docx,.pdf,.txt,.jpg,.jpeg,.png,.xls,.xlsx,.ppt,.pptx,.zip">
+                                    <div id="attachedFiles" class="attached-files"></div>
+                                </div>
+                                <button type="button" class="btn-primary" onclick="handleSubmitWork()">Submit Work</button>
                             </div>
                             <div id="submissionStatus" class="submission-status"></div>
                         </div>
