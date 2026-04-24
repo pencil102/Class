@@ -6,6 +6,7 @@ let selectedClassId = null;
 let selectedAssignmentId = null;
 let selectedConversationId = null;
 let selectedFiles = [];
+let selectedStudentId = null;
 
 // Initialize demo data if needed
 function initializeDemoData() {
@@ -263,6 +264,8 @@ function handleCreateClass(e) {
         students: [],
         assignments: [],
         announcements: [],
+        gradeCategories: [],
+        streamEvents: [],
         createdAt: new Date().toISOString()
     };
 
@@ -371,10 +374,12 @@ function loadClassDetail() {
         document.getElementById('editClassBtn').style.display = 'inline-block';
         document.getElementById('announcementForm').style.display = 'block';
         document.getElementById('assignmentForm').style.display = 'block';
+        document.getElementById('categoryManagementBtn').style.display = 'inline-block';
     } else {
         document.getElementById('editClassBtn').style.display = 'none';
         document.getElementById('announcementForm').style.display = 'none';
         document.getElementById('assignmentForm').style.display = 'none';
+        document.getElementById('categoryManagementBtn').style.display = 'none';
     }
 
     loadStream();
@@ -409,25 +414,47 @@ function switchTab(tabName) {
     }
 }
 
-// Load Stream (Announcements)
+// Load Stream (Announcements + Assignments)
 function loadStream() {
     const targetClass = classes.find(c => c.id === selectedClassId);
     if (!targetClass) return;
 
-    const announcements = targetClass.announcements || [];
-    const html = announcements.length > 0
-        ? announcements.map(a => `
-            <div class="stream-item">
-                <div class="stream-item-header">
-                    <div>
-                        <h4>${a.authorName}</h4>
-                        <span class="stream-item-time">${new Date(a.createdAt).toLocaleDateString()}</span>
+    const streamEvents = targetClass.streamEvents || [];
+    const sortedEvents = [...streamEvents].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const html = sortedEvents.length > 0
+        ? sortedEvents.map(event => {
+            if (event.type === 'announcement') {
+                return `
+                    <div class="stream-item announcement-item">
+                        <div class="stream-item-header">
+                            <div>
+                                <h4>📢 ${event.authorName}</h4>
+                                <span class="stream-item-time">${new Date(event.createdAt).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div class="stream-item-content">${event.content}</div>
                     </div>
-                </div>
-                <div class="stream-item-content">${a.content}</div>
-            </div>
-        `).join('')
-        : '<p>No announcements yet.</p>';
+                `;
+            } else if (event.type === 'assignment') {
+                return `
+                    <div class="stream-item assignment-stream-item" onclick="openAssignment('${event.assignmentId}')">
+                        <div class="stream-item-header">
+                            <div>
+                                <h4>📋 ${event.title}</h4>
+                                <span class="stream-item-time">Posted: ${new Date(event.createdAt).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div class="stream-item-content">
+                            <p>${event.description || 'No description'}</p>
+                            <p><strong>Due:</strong> ${new Date(event.dueDate).toLocaleDateString()}</p>
+                            <p><strong>Points:</strong> ${event.points}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }).join('')
+        : '<p>No announcements or assignments yet.</p>';
 
     document.getElementById('streamContainer').innerHTML = html;
 }
@@ -440,12 +467,24 @@ function handlePostAnnouncement(e) {
     const targetClass = classes.find(c => c.id === selectedClassId);
     if (!targetClass) return;
 
+    if (!targetClass.streamEvents) {
+        targetClass.streamEvents = [];
+    }
     if (!targetClass.announcements) {
         targetClass.announcements = [];
     }
 
     targetClass.announcements.push({
         id: 'announcement' + Date.now(),
+        authorName: currentUser.name,
+        authorId: currentUser.id,
+        content,
+        createdAt: new Date().toISOString()
+    });
+
+    targetClass.streamEvents.push({
+        id: 'event' + Date.now(),
+        type: 'announcement',
         authorName: currentUser.name,
         authorId: currentUser.id,
         content,
@@ -501,6 +540,7 @@ function handleCreateAssignment(e) {
     const description = document.getElementById('assignmentDescription').value;
     const dueDate = document.getElementById('assignmentDueDate').value;
     const points = document.getElementById('assignmentPoints').value || 100;
+    const category = document.getElementById('assignmentCategory').value || 'General';
 
     const targetClass = classes.find(c => c.id === selectedClassId);
     if (!targetClass) return;
@@ -508,16 +548,35 @@ function handleCreateAssignment(e) {
     if (!targetClass.assignments) {
         targetClass.assignments = [];
     }
+    if (!targetClass.streamEvents) {
+        targetClass.streamEvents = [];
+    }
 
-    targetClass.assignments.push({
+    const newAssignment = {
         id: 'assignment' + Date.now(),
         title,
         description,
         dueDate,
         points,
+        category,
         createdBy: currentUser.id,
         submissions: [],
-        comments: []
+        comments: [],
+        createdAt: new Date().toISOString()
+    };
+
+    targetClass.assignments.push(newAssignment);
+
+    // Add to stream
+    targetClass.streamEvents.push({
+        id: 'event' + Date.now(),
+        type: 'assignment',
+        assignmentId: newAssignment.id,
+        title,
+        description,
+        dueDate,
+        points,
+        createdAt: new Date().toISOString()
     });
 
     localStorage.setItem('classes', JSON.stringify(classes));
@@ -526,6 +585,7 @@ function handleCreateAssignment(e) {
     document.getElementById('assignmentDueDate').value = '';
     document.getElementById('assignmentPoints').value = '';
     loadClasswork();
+    loadStream();
 }
 
 // Open Assignment
@@ -580,6 +640,7 @@ function loadSubmissionStatus(assignment) {
             <p><strong>✅ Status:</strong> Submitted on ${new Date(submission.submittedAt).toLocaleDateString()}</p>
             ${submission.grade ? `<p><strong>📊 Grade:</strong> ${submission.grade}/${assignment.points}</p>` : '<p>⏳ Waiting for grading...</p>'}
             ${submission.notes ? `<p><strong>📝 Notes:</strong> ${submission.notes}</p>` : ''}
+            ${submission.feedback ? `<p><strong>💬 Teacher Feedback:</strong> ${submission.feedback}</p>` : ''}
             ${submission.files && submission.files.length > 0 ? `
                 <div class="submission-files">
                     <p><strong>📎 Attached Files:</strong></p>
@@ -631,7 +692,8 @@ async function handleSubmitWork() {
             notes,
             files: filesData,
             submittedAt: new Date().toISOString(),
-            grade: null
+            grade: null,
+            feedback: ''
         });
     }
 
@@ -654,9 +716,10 @@ function loadSubmissions(assignment) {
                         <span class="submission-item-name">${s.studentName}</span>
                         <span class="submission-item-date">${new Date(s.submittedAt).toLocaleDateString()}</span>
                     </div>
-                    <span class="submission-item-score">${s.grade || 'Not graded'}</span>
+                    <span class="submission-item-score">${s.grade !== null && s.grade !== undefined ? s.grade : 'Not graded'}</span>
                 </div>
-                ${s.notes ? `<div class="submission-item-notes"><strong>Notes:</strong> ${s.notes}</div>` : ''}
+                ${s.notes ? `<div class="submission-item-notes"><strong>Student Notes:</strong> ${s.notes}</div>` : ''}
+                ${s.feedback ? `<div class="submission-item-feedback"><strong>Your Feedback:</strong> ${s.feedback}</div>` : ''}
                 ${s.files && s.files.length > 0 ? `
                     <div class="submission-files">
                         <strong>📎 Attached Files:</strong>
@@ -668,7 +731,9 @@ function loadSubmissions(assignment) {
                         `).join('')}
                     </div>
                 ` : ''}
-                <button class="btn-primary" onclick="gradeSubmission('${s.id}')">Grade</button>
+                <div class="submission-actions">
+                    <button class="btn-primary" onclick="gradeSubmissionForm('${s.id}')">Grade Submission</button>
+                </div>
             </div>
         `).join('')
         : '<p>No submissions yet.</p>';
@@ -676,17 +741,23 @@ function loadSubmissions(assignment) {
     document.getElementById('submissionsContainer').innerHTML = submissionsHtml;
 }
 
-// Grade Submission (simplified)
-function gradeSubmission(submissionId) {
-    const grade = prompt('Enter grade (e.g., 95/100):');
-    if (grade) {
-        const targetClass = classes.find(c => c.id === selectedClassId);
-        const assignment = targetClass.assignments.find(a => a.id === selectedAssignmentId);
-        const submission = assignment.submissions.find(s => s.id === submissionId);
-        submission.grade = grade;
-        localStorage.setItem('classes', JSON.stringify(classes));
-        loadSubmissions(assignment);
-    }
+// Grade Submission Form
+function gradeSubmissionForm(submissionId) {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    const assignment = targetClass.assignments.find(a => a.id === selectedAssignmentId);
+    const submission = assignment.submissions.find(s => s.id === submissionId);
+
+    const grade = prompt(`Enter grade (out of ${assignment.points}):`, submission.grade || '');
+    if (grade === null) return;
+
+    const feedback = prompt('Add feedback for the student (optional):', submission.feedback || '');
+    
+    submission.grade = parseFloat(grade) || null;
+    submission.feedback = feedback || '';
+
+    localStorage.setItem('classes', JSON.stringify(classes));
+    loadSubmissions(assignment);
+    recalculateAllGrades();
 }
 
 // Load Comments
@@ -731,89 +802,444 @@ function handleAddComment() {
     loadComments(assignment);
 }
 
-// Load Grades (Teacher view)
+// Grade Categories Management
+function showGradeCategoryManager() {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    const categories = targetClass.gradeCategories || [];
+
+    let html = `
+        <div class="modal-overlay" onclick="closeModal()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h2>Manage Grade Categories</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="categories-list">
+    `;
+
+    categories.forEach(cat => {
+        html += `
+            <div class="category-item">
+                <div class="category-info">
+                    <span class="category-name">${cat.name}</span>
+                    <span class="category-weight">${cat.weight}% of grade</span>
+                </div>
+                <button class="btn-danger" onclick="deleteCategory('${cat.id}')">Delete</button>
+            </div>
+        `;
+    });
+
+    html += `
+                    </div>
+                    <div class="add-category-form">
+                        <h3>Add New Category</h3>
+                        <div class="form-group">
+                            <label for="newCategoryName">Category Name</label>
+                            <input type="text" id="newCategoryName" placeholder="e.g., Tests, Homework, Classwork">
+                        </div>
+                        <div class="form-group">
+                            <label for="newCategoryWeight">Weight (%)</label>
+                            <input type="number" id="newCategoryWeight" min="0" max="100" placeholder="e.g., 30">
+                        </div>
+                        <button class="btn-primary" onclick="addCategory()">Add Category</button>
+                        <button class="btn-secondary" onclick="closeModal()">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function addCategory() {
+    const name = document.getElementById('newCategoryName').value;
+    const weight = parseFloat(document.getElementById('newCategoryWeight').value);
+
+    if (!name || isNaN(weight)) {
+        alert('Please fill in all fields');
+        return;
+    }
+
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    if (!targetClass.gradeCategories) {
+        targetClass.gradeCategories = [];
+    }
+
+    targetClass.gradeCategories.push({
+        id: 'category' + Date.now(),
+        name,
+        weight
+    });
+
+    localStorage.setItem('classes', JSON.stringify(classes));
+    closeModal();
+    showGradeCategoryManager();
+}
+
+function deleteCategory(categoryId) {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    targetClass.gradeCategories = targetClass.gradeCategories.filter(c => c.id !== categoryId);
+    localStorage.setItem('classes', JSON.stringify(classes));
+    closeModal();
+    showGradeCategoryManager();
+}
+
+function closeModal() {
+    const modal = document.querySelector('.modal-overlay');
+    if (modal) modal.remove();
+}
+
+// Calculate Overall Grade
+function calculateStudentGrade(studentId) {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    const categories = targetClass.gradeCategories || [];
+
+    if (categories.length === 0) {
+        return null; // No categories configured
+    }
+
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    categories.forEach(category => {
+        const assignments = targetClass.assignments.filter(a => a.category === category.name);
+        if (assignments.length === 0) return;
+
+        let categorySum = 0;
+        let categoryCount = 0;
+
+        assignments.forEach(assignment => {
+            const submission = assignment.submissions.find(s => s.studentId === studentId);
+            if (submission && submission.grade !== null && submission.grade !== undefined) {
+                categorySum += (submission.grade / assignment.points) * 100;
+                categoryCount++;
+            }
+        });
+
+        if (categoryCount > 0) {
+            const categoryAverage = categorySum / categoryCount;
+            weightedSum += categoryAverage * (category.weight / 100);
+            totalWeight += category.weight / 100;
+        }
+    });
+
+    if (totalWeight === 0) return null;
+    return (weightedSum / totalWeight).toFixed(2);
+}
+
+function recalculateAllGrades() {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    targetClass.students.forEach(studentId => {
+        calculateStudentGrade(studentId);
+    });
+}
+
+// Load Grades (Teacher and Student view)
 function loadGrades() {
     const targetClass = classes.find(c => c.id === selectedClassId);
     const assignments = targetClass.assignments || [];
 
     if (currentUser.type === 'student') {
-        // Student view - show their grades
-        const gradesHtml = assignments.length > 0
-            ? `<table class="grades-table">
-                <thead>
-                    <tr>
-                        <th>Assignment</th>
-                        <th>Due Date</th>
-                        <th>Status</th>
-                        <th>Grade</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${assignments.map(a => {
-                        const submission = a.submissions.find(s => s.studentId === currentUser.id);
-                        return `<tr>
-                            <td>${a.title}</td>
-                            <td>${new Date(a.dueDate).toLocaleDateString()}</td>
-                            <td>${submission ? (submission.grade ? 'Graded' : 'Submitted') : 'Not submitted'}</td>
-                            <td>${submission && submission.grade ? submission.grade : 'N/A'}</td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>`
-            : '<p>No assignments yet.</p>';
+        // Student view - show their grades by category
+        const categories = targetClass.gradeCategories || [];
+        let gradesHtml = '';
+
+        if (categories.length > 0) {
+            gradesHtml = `
+                <div class="grades-summary">
+                    <h3>Overall Grade: ${calculateStudentGrade(currentUser.id) || 'N/A'}%</h3>
+                </div>
+                <table class="grades-table">
+                    <thead>
+                        <tr>
+                            <th>Assignment</th>
+                            <th>Category</th>
+                            <th>Due Date</th>
+                            <th>Grade</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            assignments.forEach(a => {
+                const submission = a.submissions.find(s => s.studentId === currentUser.id);
+                const grade = submission && submission.grade !== null && submission.grade !== undefined ? `${submission.grade}/${a.points}` : 'N/A';
+                const status = submission ? (submission.grade !== null && submission.grade !== undefined ? 'Graded' : 'Submitted') : 'Not submitted';
+                gradesHtml += `<tr>
+                    <td>${a.title}</td>
+                    <td>${a.category || 'General'}</td>
+                    <td>${new Date(a.dueDate).toLocaleDateString()}</td>
+                    <td>${grade}</td>
+                    <td>${status}</td>
+                </tr>`;
+            });
+
+            gradesHtml += `
+                    </tbody>
+                </table>
+            `;
+        } else {
+            gradesHtml = '<p>Teacher hasn\'t set up grade categories yet.</p>';
+        }
         document.getElementById('gradesContainer').innerHTML = gradesHtml;
     } else {
-        // Teacher view - show all students grades
+        // Teacher view - show all students' grades
         const students = targetClass.students || [];
-        const gradesHtml = students.length > 0
-            ? `<table class="grades-table">
+        const categories = targetClass.gradeCategories || [];
+
+        if (students.length === 0) {
+            document.getElementById('gradesContainer').innerHTML = '<p>No students in this class yet.</p>';
+            return;
+        }
+
+        if (categories.length === 0) {
+            document.getElementById('gradesContainer').innerHTML = '<p><strong>⚠️ No grade categories configured.</strong> <button class="btn-primary" onclick="showGradeCategoryManager()">Set up categories</button></p>';
+            return;
+        }
+
+        let gradesHtml = `
+            <div class="grades-header">
+                <button class="btn-secondary" onclick="showGradeCategoryManager()">Manage Categories</button>
+            </div>
+            <table class="grades-table">
                 <thead>
                     <tr>
                         <th>Student</th>
-                        ${assignments.map(a => `<th>${a.title}</th>`).join('')}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${students.map(studentId => {
-                        const student = users.find(u => u.id === studentId);
-                        return `<tr>
-                            <td>${student.name}</td>
-                            ${assignments.map(a => {
-                                const submission = a.submissions.find(s => s.studentId === studentId);
-                                return `<td>${submission && submission.grade ? submission.grade : '-'}</td>`;
-                            }).join('')}
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>`
-            : '<p>No students in this class yet.</p>';
+        `;
+
+        categories.forEach(cat => {
+            gradesHtml += `<th>${cat.name}<br>(${cat.weight}%)</th>`;
+        });
+        gradesHtml += `<th>Overall Grade</th></tr></thead><tbody>`;
+
+        students.forEach(studentId => {
+            const student = users.find(u => u.id === studentId);
+            gradesHtml += `<tr><td>${student.name}</td>`;
+
+            categories.forEach(category => {
+                const categoryAssignments = assignments.filter(a => a.category === category.name);
+                let categoryGrade = '-';
+                let categorySum = 0;
+                let categoryCount = 0;
+
+                categoryAssignments.forEach(a => {
+                    const submission = a.submissions.find(s => s.studentId === studentId);
+                    if (submission && submission.grade !== null && submission.grade !== undefined) {
+                        categorySum += (submission.grade / a.points) * 100;
+                        categoryCount++;
+                    }
+                });
+
+                if (categoryCount > 0) {
+                    categoryGrade = (categorySum / categoryCount).toFixed(1) + '%';
+                }
+
+                gradesHtml += `<td>${categoryGrade}</td>`;
+            });
+
+            const overallGrade = calculateStudentGrade(studentId);
+            gradesHtml += `<td><strong>${overallGrade || '-'}%</strong></td></tr>`;
+        });
+
+        gradesHtml += '</tbody></table>';
         document.getElementById('gradesContainer').innerHTML = gradesHtml;
     }
 }
 
-// Load Members
+// Load Members (Enhanced for Teachers)
 function loadMembers() {
     const targetClass = classes.find(c => c.id === selectedClassId);
     const students = targetClass.students || [];
     const teacher = users.find(u => u.id === targetClass.teacherId);
 
-    const membersHtml = `
-        <div class="member-card">
-            <div class="member-name">${teacher.name}</div>
-            <div class="member-email">${teacher.email}</div>
-            <div class="member-role">Teacher</div>
-        </div>
-        ${students.map(studentId => {
-            const student = users.find(u => u.id === studentId);
-            return `<div class="member-card">
-                <div class="member-name">${student.name}</div>
-                <div class="member-email">${student.email}</div>
-                <div class="member-role">Student</div>
-            </div>`;
-        }).join('')}
+    if (currentUser.type === 'student') {
+        // Student view - show all members
+        const membersHtml = `
+            <div class="member-card">
+                <div class="member-name">${teacher.name}</div>
+                <div class="member-email">${teacher.email}</div>
+                <div class="member-role">Teacher</div>
+            </div>
+            ${students.map(studentId => {
+                const student = users.find(u => u.id === studentId);
+                return `<div class="member-card">
+                    <div class="member-name">${student.name}</div>
+                    <div class="member-email">${student.email}</div>
+                    <div class="member-role">Student</div>
+                </div>`;
+            }).join('')}
+        `;
+        document.getElementById('membersContainer').innerHTML = membersHtml;
+    } else {
+        // Teacher view - detailed student info and work
+        const assignments = targetClass.assignments || [];
+
+        let membersHtml = '<div class="members-teacher-view">';
+
+        if (students.length === 0) {
+            membersHtml += '<p>No students in this class yet.</p>';
+        } else {
+            students.forEach(studentId => {
+                const student = users.find(u => u.id === studentId);
+                const grade = calculateStudentGrade(studentId) || 'N/A';
+                
+                let submittedCount = 0;
+                let gradedCount = 0;
+
+                assignments.forEach(a => {
+                    const submission = a.submissions.find(s => s.studentId === studentId);
+                    if (submission) {
+                        submittedCount++;
+                        if (submission.grade !== null && submission.grade !== undefined) {
+                            gradedCount++;
+                        }
+                    }
+                });
+
+                membersHtml += `
+                    <div class="student-detail-card">
+                        <div class="student-header">
+                            <h3>${student.name}</h3>
+                            <span class="overall-grade">Grade: ${grade}%</span>
+                        </div>
+                        <div class="student-info">
+                            <p><strong>Email:</strong> ${student.email}</p>
+                            <p><strong>Assignments:</strong> ${submittedCount}/${assignments.length} submitted</p>
+                            <p><strong>Graded:</strong> ${gradedCount}/${submittedCount || 0} graded</p>
+                        </div>
+                        <div class="student-work">
+                            <h4>Assignment Details:</h4>
+                            <table class="student-work-table">
+                                <thead>
+                                    <tr>
+                                        <th>Assignment</th>
+                                        <th>Status</th>
+                                        <th>Grade</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+
+                assignments.forEach(a => {
+                    const submission = a.submissions.find(s => s.studentId === studentId);
+                    const status = submission ? (submission.grade !== null && submission.grade !== undefined ? 'Graded' : 'Submitted') : 'Not submitted';
+                    const gradeDisplay = submission && submission.grade !== null && submission.grade !== undefined ? `${submission.grade}/${a.points}` : '-';
+                    
+                    membersHtml += `
+                        <tr>
+                            <td>${a.title}</td>
+                            <td><span class="status-badge status-${status.toLowerCase()}">${status}</span></td>
+                            <td>${gradeDisplay}</td>
+                            <td><button class="btn-small" onclick="viewStudentWork('${studentId}', '${a.id}')">View</button></td>
+                        </tr>
+                    `;
+                });
+
+                membersHtml += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        membersHtml += '</div>';
+        document.getElementById('membersContainer').innerHTML = membersHtml;
+    }
+}
+
+function viewStudentWork(studentId, assignmentId) {
+    selectedStudentId = studentId;
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    const assignment = targetClass.assignments.find(a => a.id === assignmentId);
+    const student = users.find(u => u.id === studentId);
+    const submission = assignment.submissions.find(s => s.studentId === studentId);
+
+    let html = `
+        <div class="modal-overlay" onclick="closeModal()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h2>${student.name} - ${assignment.title}</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div class="modal-body">
     `;
 
-    document.getElementById('membersContainer').innerHTML = membersHtml;
+    if (!submission) {
+        html += '<p>No submission yet.</p>';
+    } else {
+        html += `
+            <div class="work-details">
+                <p><strong>Submitted:</strong> ${new Date(submission.submittedAt).toLocaleDateString()}</p>
+                <p><strong>Current Grade:</strong> ${submission.grade !== null && submission.grade !== undefined ? `${submission.grade}/${assignment.points}` : 'Not graded'}</p>
+        `;
+
+        if (submission.notes) {
+            html += `<p><strong>Student Notes:</strong> ${submission.notes}</p>`;
+        }
+
+        if (submission.files && submission.files.length > 0) {
+            html += `
+                <div class="work-files">
+                    <strong>📎 Files Submitted:</strong>
+                    ${submission.files.map(file => `
+                        <div class="file-item">
+                            <span>📄 ${file.name}</span>
+                            <span class="file-size">(${(file.size / 1024).toFixed(2)} KB)</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        if (submission.feedback) {
+            html += `<p><strong>Your Feedback:</strong> ${submission.feedback}</p>`;
+        }
+
+        html += `
+            <div class="grade-form">
+                <div class="form-group">
+                    <label for="workGrade">Grade</label>
+                    <input type="number" id="workGrade" value="${submission.grade || ''}" max="${assignment.points}" placeholder="Enter grade">
+                </div>
+                <div class="form-group">
+                    <label for="workFeedback">Feedback</label>
+                    <textarea id="workFeedback" placeholder="Enter feedback for student">${submission.feedback || ''}</textarea>
+                </div>
+                <button class="btn-primary" onclick="saveStudentGrade('${studentId}', '${assignmentId}')">Save Grade</button>
+            </div>
+        `;
+    }
+
+    html += `
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function saveStudentGrade(studentId, assignmentId) {
+    const targetClass = classes.find(c => c.id === selectedClassId);
+    const assignment = targetClass.assignments.find(a => a.id === assignmentId);
+    const submission = assignment.submissions.find(s => s.studentId === studentId);
+
+    const grade = document.getElementById('workGrade').value;
+    const feedback = document.getElementById('workFeedback').value;
+
+    submission.grade = grade ? parseFloat(grade) : null;
+    submission.feedback = feedback;
+
+    localStorage.setItem('classes', JSON.stringify(classes));
+    closeModal();
+    recalculateAllGrades();
+    loadMembers();
 }
 
 // Edit Class Handler
